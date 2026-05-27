@@ -216,11 +216,11 @@
             setupAdminSearchFilters();
             loadAnalyticsDashboard();
             loadInventoryControlMatrix();
-            loadOrdersQueue();
+            loadOrdersQueue(); // Pipeline established
             loadCustomerComments();
             loadUsers();
             loadAnnouncements();
-            loadSystemSettings(); // NEW
+            loadSystemSettings();
 
             document.getElementById('order-search').addEventListener('input', () => {
                 clearTimeout(debounceTimer);
@@ -231,7 +231,6 @@
             document.getElementById('user-search').addEventListener('input', renderUsersTable);
         }
 
-        // --- NEW: System Settings Logic ---
         async function loadSystemSettings() {
             const { data, error } = await window.supabase.from('system_settings').select('*').eq('setting_key', 'displayed_online_users').single();
             if (data) {
@@ -251,8 +250,6 @@
             btn.innerText = "Save Configuration";
         });
 
-
-        // --- User Management (EXTENDED) ---
         async function loadUsers() {
             const { data, error } = await window.supabase.from('profiles').select('*').order('created_at', { ascending: false });
             if(!error && data) { rawUsersCache = data; renderUsersTable(); }
@@ -272,7 +269,7 @@
             filtered.forEach(u => {
                 const date = new Date(u.created_at).toLocaleDateString();
                 const avatar = u.avatar_url || 'https://via.placeholder.com/40';
-                const status = u.account_status || 'Active'; // Extension fallback
+                const status = u.account_status || 'Active';
                 const statusColor = status.toLowerCase() === 'active' ? 'var(--success)' : 'var(--danger)';
                 const row = document.createElement('tr');
                 row.innerHTML = `
@@ -288,7 +285,6 @@
             tbody.appendChild(fragment);
         }
 
-        // --- Announcements Management (EXTENDED) ---
         async function loadAnnouncements() {
             const { data, error } = await window.supabase.from('announcements').select('*').order('created_at', { ascending: false });
             if (!error && data) {
@@ -358,7 +354,6 @@
             loadAnnouncements();
         };
 
-        // --- Comments & Support Logic ---
         async function loadCustomerComments() {
             const [{ data: reviews }, { data: inquiries } ] = await Promise.all([
                 window.supabase.from('reviews').select('*'),
@@ -406,10 +401,9 @@
             setTimeout(() => toast.classList.remove("show"), 3000);
         }
 
-        // --- Navigation Logic ---
         function setupNavigationListeners() {
             const navButtons = document.querySelectorAll('.sidebar .btn:not(#logout-btn)');
-            const views = ['analytics-view', 'inventory-view', 'orders-view', 'comments-view', 'users-view', 'announcements-view', 'settings-view']; // EXTENDED
+            const views = ['analytics-view', 'inventory-view', 'orders-view', 'comments-view', 'users-view', 'announcements-view', 'settings-view'];
             navButtons.forEach((btn, index) => {
                 btn.addEventListener('click', (e) => {
                     document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active-panel'));
@@ -421,7 +415,6 @@
             });
         }
 
-        // --- Dashboard Analytics Logic ---
         async function loadAnalyticsDashboard() {
             const [{ data: prods }, { data: ords }, { data: reviews }, { data: inquiries }] = await Promise.all([
                 window.supabase.from('products').select('*'),
@@ -464,7 +457,6 @@
             });
         }
 
-        // --- Inventory Logic ---
         function setupAdminSearchFilters() {
             const fc = document.getElementById("inventory-filter-container");
             fc.innerHTML = `<div style="display:flex; gap:1rem; margin-bottom:1.5rem;"><input type="text" id="admin-search-box" class="search-input" placeholder="Filter stock..." style="flex:2;"><select id="admin-category-box" class="filter-select" style="flex:1;"><option value="All">All Categories</option><option value="Grains">Grains</option><option value="Agriculture">Agriculture</option><option value="Construction">Construction</option><option value="Electronics">Electronics</option></select></div>`;
@@ -587,60 +579,50 @@
             }
         });
 
-        // --- Orders Logic ---
         async function loadOrdersQueue() {
             const { data, error } = await window.supabase.from('orders').select('*').order('created_at', { ascending: false });
             if(!error && data) { rawOrdersCache = data; renderOrdersTable(); }
         }
 
-       function renderOrdersTable() {
-    const tbody = document.getElementById("admin-orders-list");
-    if (!tbody) return; 
-    const term = document.getElementById("order-search").value.toLowerCase().trim();
-    const statusFilter = document.getElementById("order-status-filter").value;
-    const dateFilter = document.getElementById("order-date-filter").value;
-    
-    // 1. SAFELY FILTER DATA
-    const filtered = rawOrdersCache.filter(o => {
-        // Use fallbacks to ensure values are strings before calling toLowerCase()
-        const name = o.customer_name ? o.customer_name.toLowerCase() : "";
-        const id = o.id ? o.id.toString().toLowerCase() : "";
-        
-        const matchesSearch = (name.includes(term) || id.includes(term));
-        const matchesStatus = (statusFilter === "All" || o.status === statusFilter);
-        const matchesDate = !dateFilter || (o.created_at && o.created_at.startsWith(dateFilter));
-        
-        return matchesSearch && matchesStatus && matchesDate;
-    });
+        function renderOrdersTable() {
+            const tbody = document.getElementById("admin-orders-list");
+            if (!tbody) return; 
+            const term = document.getElementById("order-search").value.toLowerCase().trim();
+            const statusFilter = document.getElementById("order-status-filter").value;
+            const dateFilter = document.getElementById("order-date-filter").value;
+            
+            const filtered = rawOrdersCache.filter(o => {
+                const matchesSearch = (o.customer_name?.toLowerCase().includes(term) || o.id.toLowerCase().includes(term));
+                const matchesStatus = (statusFilter === "All" || o.status === statusFilter);
+                const matchesDate = !dateFilter || (o.created_at && o.created_at.startsWith(dateFilter));
+                return matchesSearch && matchesStatus && matchesDate;
+            });
 
-    tbody.innerHTML = filtered.length === 0 ? `<tr><td colspan="7" style="text-align:center; padding:2rem;">No records found.</td></tr>" : "";
-    
-    // 2. SAFELY RENDER ROWS
-    const fragment = document.createDocumentFragment();
-    filtered.forEach(o => {
-        const date = o.created_at ? new Date(o.created_at).toLocaleDateString() : 'N/A';
-        const row = document.createElement('tr');
-        
-        // Use fallbacks for every property to prevent UI breakage
-        row.innerHTML = `
-            <td style="font-family:monospace; font-size:12px;">#${(o.id || 'N/A').substring(0,8).toUpperCase()}</td>
-            <td>${date}</td>
-            <td><strong>${escapeHTML(o.customer_name || 'Anonymous')}</strong><br><small>${o.customer_phone || o.phone_number || 'No contact'}</small></td>
-            <td><strong>${escapeHTML(o.product_title || 'Unknown Item')}</strong><br><small>Qty: ${o.quantity || 0}</small></td>
-            <td>${escapeHTML(o.location || 'N/A')}</td>
-            <td>
-                <select onchange="updateStatus('${o.id}', this.value)" style="padding:4px;">
-                    <option ${o.status === 'Pending' ? 'selected' : ''}>Pending</option>
-                    <option ${o.status === 'Processing' ? 'selected' : ''}>Processing</option>
-                    <option ${o.status === 'Delivered' ? 'selected' : ''}>Delivered</option>
-                </select>
-            </td>
-            <td><button onclick="archivePO('${o.id}')" style="padding:4px 8px;">Archive</button></td>
-        `;
-        fragment.appendChild(row);
-    });
-    tbody.appendChild(fragment);
-}
+            tbody.innerHTML = filtered.length === 0 ? `<tr><td colspan="7" style="text-align:center; padding:2rem;">No records found.</td></tr>` : "";
+            
+            const fragment = document.createDocumentFragment();
+            filtered.forEach(o => {
+                const date = o.created_at ? new Date(o.created_at).toLocaleDateString() : 'N/A';
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td style="font-family:monospace; font-size:12px;">#${o.id.substring(0,8).toUpperCase()}</td>
+                    <td>${date}</td>
+                    <td><strong>${escapeHTML(o.customer_name)}</strong><br><small>${o.customer_phone || o.phone_number || 'No contact'}</small></td>
+                    <td><strong>${escapeHTML(o.product_title)}</strong><br><small>Qty: ${o.quantity}</small></td>
+                    <td>${escapeHTML(o.location || 'N/A')}</td>
+                    <td>
+                        <select onchange="updateStatus('${o.id}', this.value)" style="padding:4px;">
+                            <option ${o.status === 'Pending' ? 'selected' : ''}>Pending</option>
+                            <option ${o.status === 'Processing' ? 'selected' : ''}>Processing</option>
+                            <option ${o.status === 'Delivered' ? 'selected' : ''}>Delivered</option>
+                        </select>
+                    </td>
+                    <td><button onclick="archivePO('${o.id}')" style="padding:4px 8px;">Archive</button></td>
+                `;
+                fragment.appendChild(row);
+            });
+            tbody.appendChild(fragment);
+        }
 
         window.updateStatus = async (id, status) => {
             const { error } = await window.supabase.from('orders').update({ status }).eq('id', id);
