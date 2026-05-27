@@ -593,7 +593,7 @@
             if(!error && data) { rawOrdersCache = data; renderOrdersTable(); }
         }
 
-        function renderOrdersTable() {
+      function renderOrdersTable() {
             const tbody = document.getElementById("admin-orders-list");
             if (!tbody) return; 
             const term = document.getElementById("order-search").value.toLowerCase().trim();
@@ -601,9 +601,14 @@
             const dateFilter = document.getElementById("order-date-filter").value;
             
             const filtered = rawOrdersCache.filter(o => {
-                const matchesSearch = (o.customer_name?.toLowerCase().includes(term) || o.id.toLowerCase().includes(term));
+                // Defensive coding: Check if property exists before calling toLowerCase
+                const nameMatch = o.customer_name ? o.customer_name.toLowerCase().includes(term) : false;
+                const idMatch = o.id ? o.id.toString().toLowerCase().includes(term) : false;
+                
+                const matchesSearch = nameMatch || idMatch;
                 const matchesStatus = (statusFilter === "All" || o.status === statusFilter);
                 const matchesDate = !dateFilter || (o.created_at && o.created_at.startsWith(dateFilter));
+                
                 return matchesSearch && matchesStatus && matchesDate;
             });
 
@@ -614,10 +619,10 @@
                 const date = o.created_at ? new Date(o.created_at).toLocaleDateString() : 'N/A';
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td style="font-family:monospace; font-size:12px;">#${o.id.substring(0,8).toUpperCase()}</td>
+                    <td style="font-family:monospace; font-size:12px;">#${o.id ? o.id.substring(0,8).toUpperCase() : 'N/A'}</td>
                     <td>${date}</td>
-                    <td><strong>${escapeHTML(o.customer_name)}</strong><br><small>${o.customer_phone || o.phone_number || 'No contact'}</small></td>
-                    <td><strong>${escapeHTML(o.product_title)}</strong><br><small>Qty: ${o.quantity}</small></td>
+                    <td><strong>${escapeHTML(o.customer_name || 'Anonymous')}</strong><br><small>${o.customer_phone || o.phone_number || 'No contact'}</small></td>
+                    <td><strong>${escapeHTML(o.product_title || 'Unknown Item')}</strong><br><small>Qty: ${o.quantity || 0}</small></td>
                     <td>${escapeHTML(o.location || 'N/A')}</td>
                     <td>
                         <select onchange="updateStatus('${o.id}', this.value)" style="padding:4px;">
