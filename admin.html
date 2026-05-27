@@ -174,7 +174,6 @@
 
     <script src="supabase-config.js"></script>
     <script>
-        // --- Core Helpers ---
         function renderStars(ratingNumber) {
             const num = parseInt(ratingNumber, 10) || 0;
             return '⭐'.repeat(Math.max(0, Math.min(num, 5)));
@@ -185,7 +184,6 @@
             return p.innerHTML;
         }
 
-        // --- Global Variables ---
         let localAdminInventoryCache = [];
         let rawOrdersCache = [];
         let rawUsersCache = [];
@@ -216,11 +214,19 @@
             setupAdminSearchFilters();
             loadAnalyticsDashboard();
             loadInventoryControlMatrix();
-            loadOrdersQueue(); // Pipeline established
+            loadOrdersQueue();
             loadCustomerComments();
             loadUsers();
             loadAnnouncements();
             loadSystemSettings();
+
+            // REAL-TIME SUBSCRIPTION FOR ORDERS
+            window.supabase.channel('admin-orders-live')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+                    loadOrdersQueue(); // Auto-refreshes the table when DB changes
+                    loadAnalyticsDashboard(); // Auto-refreshes the total orders count
+                })
+                .subscribe();
 
             document.getElementById('order-search').addEventListener('input', () => {
                 clearTimeout(debounceTimer);
